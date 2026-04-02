@@ -263,6 +263,30 @@
 
     /* ── Utilities ───────────────────────────────────────────────────────── */
     .hidden { display: none !important; }
+
+    /* ── Toolbar azioni conversazione ───────────────────────────────────── */
+    .chat-toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 8px 0 4px;
+      flex-shrink: 0;
+    }
+    .btn-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: .8rem;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .btn-toolbar:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+    .btn-toolbar:disabled { opacity: .4; cursor: default; }
+    .btn-toolbar svg { flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -292,6 +316,20 @@
 
 <!-- ── Chat screen ─────────────────────────────────────────────────────────── -->
 <div id="chat-screen" class="hidden">
+  <div class="chat-toolbar" id="chat-toolbar" style="display:none">
+    <button class="btn-toolbar" onclick="requestSummary()" id="btn-summary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+      Riassumi
+    </button>
+    <button class="btn-toolbar" onclick="exportPdf()" id="btn-pdf">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Esporta PDF
+    </button>
+    <button class="btn-toolbar" onclick="newChat()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+      Nuova chat
+    </button>
+  </div>
   <div id="messages"></div>
 
   <div class="input-area">
@@ -316,6 +354,7 @@
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
   let isLoading = false;
+  let lastSummary = '';   // conserva l'ultimo riassunto per il PDF
 
   // ── Init ───────────────────────────────────────────────────────────────────
   async function init() {
@@ -324,6 +363,8 @@
       const data = await res.json();
 
       if (data.authenticated) {
+        // Azzera history e thread ad ogni caricamento della pagina
+        await fetch('/api/chat/reset', { method: 'POST', credentials: 'include' });
         showChat(data.name);
       } else {
         showLogin();
@@ -351,6 +392,68 @@
   function login()  { window.location.href = '/login'; }
   function logout() { window.location.href = '/logout'; }
 
+  // ── Toolbar ────────────────────────────────────────────────────────────────
+  function showToolbar() {
+    const tb = document.getElementById('chat-toolbar');
+    if (tb) tb.style.display = 'flex';
+  }
+
+  async function requestSummary() {
+    if (isLoading) return;
+    setLoading(true);
+    try {
+      const res  = await fetch('/api/chat/summary', { method: 'POST', credentials: 'include' });
+      const data = await res.json();
+      if (data.success) {
+        lastSummary = data.summary;
+        addAgentMessage('📋 Riassunto:\n\n' + data.summary);
+      } else {
+        addErrorMessage(data.error || 'Errore nel riassunto');
+      }
+    } catch {
+      addErrorMessage('Impossibile generare il riassunto.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function exportPdf() {
+    try {
+      // Converti ogni canvas Chart.js in PNG base64, nell'ordine in cui appaiono
+      const chartCanvases = document.querySelectorAll('.chart-bubble canvas');
+      const charts = Array.from(chartCanvases).map(c => c.toDataURL('image/png'));
+
+      const res = await fetch('/api/chat/export-pdf', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ summary: lastSummary, charts }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        addErrorMessage(err.error || 'Errore esportazione PDF');
+        return;
+      }
+      const blob     = await res.blob();
+      const url      = URL.createObjectURL(blob);
+      const a        = document.createElement('a');
+      a.href         = url;
+      a.download     = `conversazione_${new Date().toISOString().slice(0,10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      addErrorMessage('Impossibile scaricare il PDF.');
+    }
+  }
+
+  async function newChat() {
+    await fetch('/api/chat/reset', { method: 'POST', credentials: 'include' });
+    lastSummary = '';
+    document.getElementById('messages').innerHTML = '';
+    document.getElementById('chat-toolbar').style.display = 'none';
+    addAgentMessage('Nuova conversazione avviata. Come posso aiutarti?');
+  }
+
   // ── Chat ───────────────────────────────────────────────────────────────────
   async function sendMessage() {
     const input  = document.getElementById('prompt-input');
@@ -375,8 +478,10 @@
 
       if (data.type === 'chart' && data.chart_data) {
         addChartMessage(data.chart_data);
+        showToolbar();
       } else if (data.success) {
         addAgentMessage(data.response);
+        showToolbar();
       } else {
         addErrorMessage(data.error || 'Errore sconosciuto');
       }

@@ -2,11 +2,18 @@ import os
 import uuid
 import json
 import re
-from flask import Flask, redirect, request, session, jsonify
+import io
+import base64
+import requests
+from datetime import datetime
+from flask import Flask, redirect, request, session, jsonify, send_file
 from flask_cors import CORS
 import msal
 from dotenv import load_dotenv
+from fpdf import FPDF
 from fabric_agent import ask_fabric_agent
+from agents_registry import get_available_agents
+from router import route, check_ollama_status
 
 
 def parse_agent_response(raw: str) -> dict:
@@ -132,6 +139,17 @@ def me():
     })
 
 
+@app.route('/api/router/status')
+def router_status():
+    """Stato del router: agenti configurati e disponibilità Ollama/Phi."""
+    agents = get_available_agents()
+    ollama = check_ollama_status()
+    return jsonify({
+        'agents': [{'id': a.id, 'name': a.name} for a in agents],
+        'ollama': ollama,
+    })
+
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     if DEV_MODE:
@@ -148,12 +166,206 @@ def chat():
     if not data or not data.get('prompt', '').strip():
         return jsonify({'error': 'Parametro "prompt" mancante o vuoto'}), 400
 
-    result = ask_fabric_agent(token, data['prompt'].strip())
-    if not result['success']:
-        return jsonify({'error': result['error']}), 502
+    prompt = data['prompt'].strip()
 
+    # Scegli l'agente più adatto con il router (Phi-3.5 Mini o keyword fallback)
+    try:
+        agent = route(prompt)
+    except RuntimeError as e:
+        return jsonify({'error': str(e)}), 503
+
+    # Recupera thread/assistant persistenti per questo agente nella sessione
+    fabric_threads = session.get('fabric_threads', {})
+    agent_thread   = fabric_threads.get(agent.id, {})
+
+    # Chiama il Fabric Data Agent selezionato (riutilizza thread se disponibile)
+    result = ask_fabric_agent(
+        token,
+        prompt,
+        agent_url    = agent.url,
+        thread_id    = agent_thread.get('thread_id'),
+        assistant_id = agent_thread.get('assistant_id'),
+    )
+
+    if not result['success']:
+        return jsonify({'error': result['error'], 'agent_id': agent.id}), 502
+
+    # Conserva thread_id e assistant_id nella sessione per i prossimi messaggi
+    fabric_threads[agent.id] = {
+        'thread_id':    result.get('thread_id'),
+        'assistant_id': result.get('assistant_id'),
+    }
+    session['fabric_threads'] = fabric_threads
+    session.modified = True
+
+    # Salva Q&A nella history locale (per summary e PDF)
+    history = session.get('chat_history', [])
+    history.append({
+        'role':       'user',
+        'text':       prompt,
+        'agent_id':   agent.id,
+        'agent_name': agent.name,
+        'ts':         datetime.utcnow().isoformat(),
+    })
     parsed = parse_agent_response(result['response'])
-    return jsonify({'success': True, **parsed})
+    agent_entry = {
+        'role':       'agent',
+        'text':       parsed.get('response', ''),
+        'entry_type': parsed.get('type', 'text'),
+        'ts':         datetime.utcnow().isoformat(),
+    }
+    if parsed.get('type') == 'chart' and parsed.get('chart_data'):
+        agent_entry['chart_data'] = parsed['chart_data']
+    history.append(agent_entry)
+    session['chat_history'] = history
+    session.modified = True
+
+    return jsonify({'success': True, 'agent_id': agent.id, 'agent_name': agent.name, **parsed})
+
+
+@app.route('/api/chat/reset', methods=['POST'])
+def chat_reset():
+    """Azzera thread Fabric e history della sessione corrente."""
+    session.pop('fabric_threads', None)
+    session.pop('chat_history', None)
+    return jsonify({'success': True})
+
+
+@app.route('/api/chat/summary', methods=['POST'])
+def chat_summary():
+    """Genera un riassunto della conversazione usando Phi-3.5 Mini (locale, zero capacity Fabric)."""
+    history = session.get('chat_history', [])
+    if not history:
+        return jsonify({'success': True, 'summary': 'Nessuna conversazione da riassumere.'})
+
+    # Costruisci la trascrizione per Phi
+    transcript_lines = []
+    for entry in history:
+        if entry['role'] == 'user':
+            transcript_lines.append(f"Utente: {entry['text']}")
+        else:
+            if entry.get('entry_type') == 'chart' and entry.get('chart_data'):
+                cd = entry['chart_data']
+                rows_text = ', '.join(
+                    ' / '.join(f"{k}: {v}" for k, v in row.items())
+                    for row in (cd.get('data') or [])
+                )
+                transcript_lines.append(
+                    f"Agente (grafico '{cd.get('title', '')}'): {rows_text}"
+                )
+            else:
+                transcript_lines.append(f"Agente: {entry['text']}")
+    transcript = '\n'.join(transcript_lines)
+
+    prompt = (
+        'Di seguito è riportata una conversazione tra un utente e un assistente dati. '
+        'Scrivi un riassunto conciso in italiano, evidenziando le domande principali '
+        'e i dati chiave emersi dalle risposte.\n\n'
+        f'{transcript}\n\n'
+        'Riassunto:'
+    )
+
+    try:
+        resp = requests.post(
+            'http://localhost:11434/api/chat',
+            json={
+                'model': 'phi3.5',
+                'messages': [{'role': 'user', 'content': prompt}],
+                'stream': False,
+                'options': {'temperature': 0.3},
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        summary = resp.json().get('message', {}).get('content', '').strip()
+    except requests.exceptions.ConnectionError:
+        return jsonify({'error': 'Ollama non disponibile. Assicurati che sia in esecuzione.'}), 503
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'error': f'Errore Phi-3.5: {e}'}), 500
+
+    return jsonify({'success': True, 'summary': summary})
+
+
+@app.route('/api/chat/export-pdf', methods=['POST'])
+def export_pdf():
+    """Genera e scarica un PDF con la history della conversazione e il riassunto."""
+    data    = request.get_json(silent=True) or {}
+    summary = data.get('summary', '')
+    charts  = data.get('charts', [])  # lista di dataURL base64 dai canvas Chart.js
+    history = session.get('chat_history', [])
+
+    if not history and not summary:
+        return jsonify({'error': 'Nessuna conversazione da esportare'}), 400
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # Titolo
+    pdf.set_font('Helvetica', 'B', 16)
+    pdf.cell(0, 10, 'Report Conversazione - Fabric Data Agent', ln=True, align='C')
+    pdf.set_font('Helvetica', '', 9)
+    pdf.cell(0, 6, f'Generato il {datetime.utcnow().strftime("%d/%m/%Y %H:%M")} UTC', ln=True, align='C')
+    pdf.ln(6)
+
+    # Riassunto
+    if summary:
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.cell(0, 8, 'Riassunto', ln=True)
+        pdf.set_draw_color(0, 120, 212)
+        pdf.set_line_width(0.5)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(3)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.multi_cell(0, 6, summary)
+        pdf.ln(8)
+
+    # Conversazione
+    if history:
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.cell(0, 8, 'Conversazione', ln=True)
+        pdf.set_draw_color(0, 120, 212)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(3)
+
+        chart_index = 0
+        for entry in history:
+            if entry['role'] == 'user':
+                pdf.set_font('Helvetica', 'B', 10)
+                agent_label = entry.get('agent_name', '')
+                label = f'Tu  ->  {agent_label}:' if agent_label else 'Tu:'
+                pdf.set_text_color(0, 120, 212)
+                pdf.cell(0, 7, label, ln=True)
+                pdf.set_text_color(0, 0, 0)
+                pdf.set_font('Helvetica', '', 10)
+                pdf.multi_cell(0, 6, entry['text'])
+            else:
+                pdf.set_font('Helvetica', 'B', 10)
+                pdf.set_text_color(30, 130, 80)
+                if entry.get('entry_type') == 'chart':
+                    pdf.cell(0, 7, f'Agente (Grafico): {entry["text"]}', ln=True)
+                    pdf.set_text_color(0, 0, 0)
+                    if chart_index < len(charts):
+                        raw = charts[chart_index]
+                        if ',' in raw:
+                            raw = raw.split(',', 1)[1]
+                        img_bytes = base64.b64decode(raw)
+                        pdf.image(io.BytesIO(img_bytes), w=180)
+                    chart_index += 1
+                else:
+                    pdf.cell(0, 7, 'Agente:', ln=True)
+                    pdf.set_text_color(0, 0, 0)
+                    pdf.set_font('Helvetica', '', 10)
+                    pdf.multi_cell(0, 6, entry['text'])
+            pdf.ln(3)
+
+    pdf_bytes = pdf.output()
+    buf = io.BytesIO(bytes(pdf_bytes))
+    filename = f'conversazione_{datetime.utcnow().strftime("%Y%m%d_%H%M")}.pdf'
+    return send_file(buf, mimetype='application/pdf',
+                     as_attachment=True, download_name=filename)
 
 
 if __name__ == '__main__':
