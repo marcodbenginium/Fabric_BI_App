@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fabric Data Agent</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f0f2f5;
+      --surface:   #ffffff;
+      --primary:   #0078d4;
+      --primary-h: #106ebe;
+      --user-bg:   #0078d4;
+      --agent-bg:  #ffffff;
+      --border:    #e1e4e8;
+      --text:      #1a1a2e;
+      --text-muted:#6b7280;
+      --radius:    12px;
+      --shadow:    0 2px 12px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow);
+      flex-shrink: 0;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .header-brand svg { color: var(--primary); }
+
+    .header-user {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: .875rem;
+      color: var(--text-muted);
+    }
+
+    .btn {
+      padding: 7px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: .875rem;
+      font-weight: 500;
+      transition: background .15s;
+    }
+
+    .btn-primary    { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-h); }
+    .btn-outline    { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: var(--bg); }
+
+    /* ── Login screen ────────────────────────────────────────────────────── */
+    #login-screen {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 48px 40px;
+      text-align: center;
+      max-width: 400px;
+      width: 100%;
+    }
+
+    .login-card h2 { font-size: 1.5rem; margin-bottom: 8px; }
+    .login-card p  { color: var(--text-muted); margin-bottom: 28px; font-size: .9rem; }
+
+    .login-card .btn { width: 100%; padding: 12px; font-size: 1rem; }
+
+    /* ── Chat screen ─────────────────────────────────────────────────────── */
+    #chat-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 16px;
+      min-height: 0;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    /* ── Message bubbles ─────────────────────────────────────────────────── */
+    .message {
+      display: flex;
+      gap: 10px;
+      max-width: 78%;
+    }
+
+    .message.user   { align-self: flex-end; flex-direction: row-reverse; }
+    .message.agent  { align-self: flex-start; }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .8rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .message.user  .avatar { background: var(--primary); color: #fff; }
+    .message.agent .avatar { background: #e8f0fe; color: var(--primary); font-size: 1rem; }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      line-height: 1.55;
+      font-size: .95rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .message.user  .bubble { background: var(--user-bg); color: #fff; border-bottom-right-radius: 4px; }
+    .message.agent .bubble { background: var(--agent-bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+
+    /* ── Typing indicator ────────────────────────────────────────────────── */
+    .typing-indicator { display: flex; gap: 5px; align-items: center; padding: 14px 16px; }
+    .typing-indicator span {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--primary);
+      opacity: .4;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: .2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: .4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+      30%            { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* ── Input area ─────────────────────────────────────────────────────── */
+    .input-area {
+      padding: 14px 0 20px;
+      flex-shrink: 0;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      box-shadow: var(--shadow);
+    }
+
+    #prompt-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: .95rem;
+      font-family: inherit;
+      background: transparent;
+      resize: none;
+      max-height: 140px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    #send-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      align-self: flex-end;
+      transition: background .15s;
+    }
+
+    #send-btn:hover:not(:disabled) { background: var(--primary-h); }
+    #send-btn:disabled { opacity: .45; cursor: default; }
+
+    .input-hint { font-size: .78rem; color: var(--text-muted); margin-top: 6px; text-align: center; }
+
+    /* ── Error alert ─────────────────────────────────────────────────────── */
+    .alert {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: .875rem;
+      color: #b91c1c;
+    }
+
+    /* ── Chart bubble ────────────────────────────────────────────────────── */
+    .chart-bubble {
+      background: var(--agent-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      padding: 16px;
+      width: 480px;
+      max-width: 88vw;
+    }
+
+    .chart-title {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 260px;
+    }
+
+    /* ── Utilities ───────────────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="header-brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+    </svg>
+    Fabric Data Agent
+  </div>
+  <div class="header-user">
+    <span id="user-name" class="hidden"></span>
+    <button id="logout-btn" class="btn btn-outline hidden" onclick="logout()">Esci</button>
+  </div>
+</header>
+
+<!-- ── Login screen ────────────────────────────────────────────────────────── -->
+<div id="login-screen" class="hidden">
+  <div class="login-card">
+    <h2>Benvenuto</h2>
+    <p>Accedi con il tuo account aziendale per interrogare i modelli semantici tramite l'agente Fabric.</p>
+    <button class="btn btn-primary" onclick="login()">Accedi con Microsoft</button>
+  </div>
+</div>
+
+<!-- ── Chat screen ─────────────────────────────────────────────────────────── -->
+<div id="chat-screen" class="hidden">
+  <div id="messages"></div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <textarea
+        id="prompt-input"
+        placeholder="Chiedi qualcosa ai tuoi dati… (es. «Qual è il fatturato del Q1?»)"
+        rows="1"
+        onkeydown="handleKeydown(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button id="send-btn" onclick="sendMessage()" title="Invia (Ctrl+Invio)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+    <p class="input-hint">Ctrl + Invio per inviare &nbsp;·&nbsp; RLS rispettata</p>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let isLoading = false;
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  async function init() {
+    try {
+      const res  = await fetch('/api/me', { credentials: 'include' });
+      const data = await res.json();
+
+      if (data.authenticated) {
+        showChat(data.name);
+      } else {
+        showLogin();
+      }
+    } catch {
+      showLogin();
+    }
+  }
+
+  function showLogin() {
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('chat-screen').classList.add('hidden');
+  }
+
+  function showChat(name) {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('chat-screen').classList.remove('hidden');
+    document.getElementById('user-name').textContent = name;
+    document.getElementById('user-name').classList.remove('hidden');
+    document.getElementById('logout-btn').classList.remove('hidden');
+    addAgentMessage('Ciao! Sono il tuo assistente dati Fabric. Puoi chiedermi informazioni sui dati dei modelli semantici aziendali in linguaggio naturale.\n\nEsempi:\n• "Qual è il fatturato totale del 2024?"\n• "Mostrami i top 5 prodotti per vendite"\n• "Quanti clienti attivi ci sono per regione?"');
+  }
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  function login()  { window.location.href = '/login'; }
+  function logout() { window.location.href = '/logout'; }
+
+  // ── Chat ───────────────────────────────────────────────────────────────────
+  async function sendMessage() {
+    const input  = document.getElementById('prompt-input');
+    const prompt = input.value.trim();
+
+    if (!prompt || isLoading) return;
+
+    addUserMessage(prompt);
+    input.value = '';
+    autoResize(input);
+    setLoading(true);
+
+    try {
+      const res  = await fetch('/api/chat', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+
+      const data = await res.json();
+
+      if (data.type === 'chart' && data.chart_data) {
+        addChartMessage(data.chart_data);
+      } else if (data.success) {
+        addAgentMessage(data.response);
+      } else {
+        addErrorMessage(data.error || 'Errore sconosciuto');
+      }
+    } catch (err) {
+      addErrorMessage('Impossibile raggiungere il server. Riprova.');
+    } finally {
+      setLoading(false);
+      document.getElementById('prompt-input').focus();
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function addUserMessage(text) {
+    const container = document.getElementById('messages');
+    container.insertAdjacentHTML('beforeend', `
+      <div class="message user">
+        <div class="avatar">Tu</div>
+        <div class="bubble">${escapeHtml(text)}</div>
+      </div>
+    `);
+    scrollToBottom();
+  }
+
+  function addChartMessage(chartData) {
+    removeTypingIndicator();
+    const chartId = `chart_${Date.now()}`;
+    const container = document.getElementById('messages');
+    container.insertAdjacentHTML('beforeend', `
+      <div class="message agent">
+        <div class="avatar">🤖</div>
+        <div class="chart-bubble">
+          <div class="chart-title">${escapeHtml(chartData.title || 'Grafico')}</div>
+          <div class="chart-container">
+            <canvas id="${chartId}"></canvas>
+          </div>
+        </div>
+      </div>
+    `);
+    scrollToBottom();
+    renderChart(chartId, chartData);
+  }
+
+  const COLORS = [
+    '#0078d4', '#10b981', '#f59e0b', '#ef4444',
+    '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
+  ];
+
+  function renderChart(canvasId, chartData) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const { chartType, data, xKey } = chartData;
+    if (!data || data.length === 0) return;
+
+    const labels = data.map(row => row[xKey] ?? Object.values(row)[0]);
+
+    // Determina le chiavi numeriche (tutto tranne xKey)
+    const valueKeys = Object.keys(data[0]).filter(k => k !== xKey);
+
+    let datasets;
+
+    if (chartType === 'pie') {
+      datasets = [{
+        data: data.map(row => row[valueKeys[0]] ?? Object.values(row)[1]),
+        backgroundColor: COLORS.slice(0, data.length),
+        borderWidth: 1,
+        borderColor: '#fff',
+      }];
+    } else {
+      datasets = valueKeys.map((key, i) => ({
+        label: key,
+        data: data.map(row => row[key]),
+        backgroundColor: chartType === 'line' ? 'transparent' : COLORS[i % COLORS.length] + '99',
+        borderColor: COLORS[i % COLORS.length],
+        borderWidth: 2,
+        pointRadius: chartType === 'line' ? 4 : 0,
+        fill: chartType === 'area',
+        tension: 0.3,
+      }));
+    }
+
+    const type = chartType === 'area' ? 'line' : chartType;
+
+    new Chart(canvas, {
+      type,
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: chartType === 'pie' || valueKeys.length > 1,
+            position: 'bottom',
+            labels: { font: { size: 11 }, padding: 12 },
+          },
+          tooltip: { mode: 'index', intersect: false },
+        },
+        scales: chartType === 'pie' ? {} : {
+          x: { grid: { color: '#f0f2f5' }, ticks: { font: { size: 11 } } },
+          y: { grid: { color: '#f0f2f5' }, ticks: { font: { size: 11 } }, beginAtZero: true },
+        },
+      },
+    });
+  }
+
+  function addAgentMessage(text) {
+    removeTypingIndicator();
+    const container = document.getElementById('messages');
+    container.insertAdjacentHTML('beforeend', `
+      <div class="message agent">
+        <div class="avatar">🤖</div>
+        <div class="bubble">${escapeHtml(text)}</div>
+      </div>
+    `);
+    scrollToBottom();
+  }
+
+  function addErrorMessage(text) {
+    removeTypingIndicator();
+    const container = document.getElementById('messages');
+    container.insertAdjacentHTML('beforeend', `
+      <div class="message agent">
+        <div class="avatar">🤖</div>
+        <div class="bubble"><div class="alert">⚠️ ${escapeHtml(text)}</div></div>
+      </div>
+    `);
+    scrollToBottom();
+  }
+
+  function showTypingIndicator() {
+    const container = document.getElementById('messages');
+    container.insertAdjacentHTML('beforeend', `
+      <div class="message agent" id="typing">
+        <div class="avatar">🤖</div>
+        <div class="bubble">
+          <div class="typing-indicator">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+    `);
+    scrollToBottom();
+  }
+
+  function removeTypingIndicator() {
+    document.getElementById('typing')?.remove();
+  }
+
+  function setLoading(state) {
+    isLoading = state;
+    const btn = document.getElementById('send-btn');
+    btn.disabled = state;
+    if (state) showTypingIndicator();
+  }
+
+  function scrollToBottom() {
+    const msgs = document.getElementById('messages');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  }
+
+  function handleKeydown(e) {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>
