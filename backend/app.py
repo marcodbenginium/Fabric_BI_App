@@ -5,6 +5,7 @@ import re
 import io
 import base64
 import requests
+from pathlib import Path
 from datetime import datetime
 from flask import Flask, redirect, request, session, jsonify, send_file
 from flask_cors import CORS
@@ -44,6 +45,19 @@ CORS(app, supports_credentials=True)
 
 # DEV_MODE=true → usa Azure CLI (az login), nessuna App Registration necessaria
 DEV_MODE = os.getenv('DEV_MODE', 'false').lower() == 'true'
+
+DASHBOARD_FILE = Path(__file__).parent / 'dashboard_widgets.json'
+
+def _load_dashboard():
+    if DASHBOARD_FILE.exists():
+        try:
+            return json.loads(DASHBOARD_FILE.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+    return []
+
+def _save_dashboard(widgets):
+    DASHBOARD_FILE.write_text(json.dumps(widgets, ensure_ascii=False, indent=2), encoding='utf-8')
 
 CLIENT_ID     = os.getenv('AZURE_CLIENT_ID')
 CLIENT_SECRET = os.getenv('AZURE_CLIENT_SECRET')
@@ -366,6 +380,38 @@ def export_pdf():
     filename = f'conversazione_{datetime.utcnow().strftime("%Y%m%d_%H%M")}.pdf'
     return send_file(buf, mimetype='application/pdf',
                      as_attachment=True, download_name=filename)
+
+
+# ── Dashboard widgets ──────────────────────────────────────────────────────
+@app.route('/api/dashboard', methods=['GET'])
+def dashboard_get():
+    return jsonify(_load_dashboard())
+
+
+@app.route('/api/dashboard', methods=['POST'])
+def dashboard_add():
+    data = request.get_json(silent=True) or {}
+    chart_data = data.get('chart_data')
+    if not chart_data:
+        return jsonify({'error': 'chart_data mancante'}), 400
+    widgets = _load_dashboard()
+    widget = {
+        'id':         str(uuid.uuid4()),
+        'title':      chart_data.get('title', 'Grafico'),
+        'chart_data': chart_data,
+        'created_at': datetime.utcnow().isoformat(),
+    }
+    widgets.append(widget)
+    _save_dashboard(widgets)
+    return jsonify({'success': True, 'widget': widget}), 201
+
+
+@app.route('/api/dashboard/<widget_id>', methods=['DELETE'])
+def dashboard_remove(widget_id):
+    widgets = _load_dashboard()
+    widgets = [w for w in widgets if w['id'] != widget_id]
+    _save_dashboard(widgets)
+    return jsonify({'success': True})
 
 
 if __name__ == '__main__':

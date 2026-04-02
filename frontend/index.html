@@ -287,6 +287,166 @@
     .btn-toolbar:hover:not(:disabled) { background: var(--bg); color: var(--text); }
     .btn-toolbar:disabled { opacity: .4; cursor: default; }
     .btn-toolbar svg { flex-shrink: 0; }
+
+    /* ── Tab navigation ─────────────────────────────────────────────────── */
+    #tab-nav {
+      display: none;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+    .tab-nav-inner {
+      display: flex;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .tab-btn {
+      padding: 11px 18px;
+      border: none;
+      background: transparent;
+      font-size: .875rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab-btn.active   { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+    .tab-badge {
+      background: var(--primary);
+      color: #fff;
+      border-radius: 10px;
+      font-size: .7rem;
+      padding: 1px 6px;
+      font-weight: 600;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    /* ── Dashboard screen ───────────────────────────────────────────────── */
+    #dashboard-screen {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 24px 32px;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .dashboard-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .dashboard-header h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .dashboard-grid {
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      gap: 20px;
+    }
+    .widget-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      /* resize nativo del browser */
+      resize: both;
+      overflow: hidden;
+      width: 440px;
+      min-width: 280px;
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      transition: box-shadow .15s;
+    }
+    .widget-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .widget-card-title {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .widget-card-meta {
+      font-size: .72rem;
+      color: var(--text-muted);
+    }
+    .widget-card-remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: .85rem;
+      line-height: 1;
+      transition: background .12s, color .12s;
+    }
+    .widget-card-remove:hover { color: #dc2626; background: #fef2f2; }
+    .widget-card-body {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      padding: 16px;
+    }
+    .dashboard-empty {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 64px 20px;
+      font-size: .95rem;
+    }
+    .dashboard-empty svg { margin-bottom: 14px; opacity: .35; }
+
+    /* ── Drag & drop ────────────────────────────────────────────────────── */
+    .drag-handle {
+      cursor: grab;
+      color: var(--text-muted);
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-size: 1rem;
+      line-height: 1;
+      transition: color .12s, background .12s;
+    }
+    .drag-handle:hover { color: var(--primary); background: #eff6ff; }
+    .drag-handle:active { cursor: grabbing; }
+    .widget-card.is-dragging { opacity: .35; box-shadow: none; }
+    .widget-card.drag-over   { outline: 2px dashed var(--primary); outline-offset: -2px; }
+
+    /* ── Pin button (in chart bubble) ───────────────────────────────────── */
+    .btn-pin {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: .78rem;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .btn-pin:hover:not(.pinned) { background: #eff6ff; color: var(--primary); border-color: var(--primary); }
+    .btn-pin.pinned { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; cursor: default; }
   </style>
 </head>
 <body>
@@ -304,6 +464,21 @@
     <button id="logout-btn" class="btn btn-outline hidden" onclick="logout()">Esci</button>
   </div>
 </header>
+
+<!-- ── Tab navigation (visibile solo quando autenticati) ─────────────────── -->
+<div id="tab-nav">
+  <div class="tab-nav-inner">
+    <button class="tab-btn active" id="tab-chat" onclick="switchTab('chat')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Chat
+    </button>
+    <button class="tab-btn" id="tab-dashboard" onclick="switchTab('dashboard')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Dashboard
+      <span class="tab-badge hidden" id="dashboard-badge">0</span>
+    </button>
+  </div>
+</div>
 
 <!-- ── Login screen ────────────────────────────────────────────────────────── -->
 <div id="login-screen" class="hidden">
@@ -351,10 +526,21 @@
   </div>
 </div>
 
+<!-- ── Dashboard screen ────────────────────────────────────────────────────── -->
+<div id="dashboard-screen" class="hidden">
+  <div class="dashboard-header">
+    <h2>Dashboard grafici</h2>
+    <span style="font-size:.8rem;color:var(--text-muted)">Aggiungi grafici dalla chat con il pulsante 📌</span>
+  </div>
+  <div id="dashboard-grid" class="dashboard-grid"></div>
+</div>
+
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
   let isLoading = false;
   let lastSummary = '';   // conserva l'ultimo riassunto per il PDF
+  const chartDataStore = {};  // chartId → chartData (per il pin)
+  const allCharts = {};       // canvasId → Chart instance (per destroy e resize)
 
   // ── Init ───────────────────────────────────────────────────────────────────
   async function init() {
@@ -382,9 +568,12 @@
   function showChat(name) {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('chat-screen').classList.remove('hidden');
+    document.getElementById('dashboard-screen').classList.add('hidden');
+    document.getElementById('tab-nav').style.display = 'block';
     document.getElementById('user-name').textContent = name;
     document.getElementById('user-name').classList.remove('hidden');
     document.getElementById('logout-btn').classList.remove('hidden');
+    updateDashboardBadge();
     addAgentMessage('Ciao! Sono il tuo assistente dati Fabric. Puoi chiedermi informazioni sui dati dei modelli semantici aziendali in linguaggio naturale.\n\nEsempi:\n• "Qual è il fatturato totale del 2024?"\n• "Mostrami i top 5 prodotti per vendite"\n• "Quanti clienti attivi ci sono per regione?"');
   }
 
@@ -508,6 +697,7 @@
   function addChartMessage(chartData) {
     removeTypingIndicator();
     const chartId = `chart_${Date.now()}`;
+    chartDataStore[chartId] = chartData;   // salva per il pin
     const container = document.getElementById('messages');
     container.insertAdjacentHTML('beforeend', `
       <div class="message agent">
@@ -517,6 +707,9 @@
           <div class="chart-container">
             <canvas id="${chartId}"></canvas>
           </div>
+          <button class="btn-pin" id="pin_${chartId}" onclick="pinChart('${chartId}')">
+            📌 Aggiungi alla dashboard
+          </button>
         </div>
       </div>
     `);
@@ -530,6 +723,11 @@
   ];
 
   function renderChart(canvasId, chartData) {
+    // Distruggi istanza precedente se presente (ridisegno dopo resize o reload)
+    if (allCharts[canvasId]) {
+      allCharts[canvasId].destroy();
+      delete allCharts[canvasId];
+    }
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
@@ -585,6 +783,7 @@
         },
       },
     });
+    allCharts[canvasId] = Chart.getChart(canvas);
   }
 
   function addAgentMessage(text) {
@@ -659,6 +858,175 @@
     if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault();
       sendMessage();
+    }
+  }
+
+  // ── Dashboard ───────────────────────────────────────────────────────────────
+  function switchTab(tab) {
+    const isChat = tab === 'chat';
+    document.getElementById('chat-screen').classList.toggle('hidden', !isChat);
+    document.getElementById('dashboard-screen').classList.toggle('hidden', isChat);
+    document.getElementById('tab-chat').classList.toggle('active', isChat);
+    document.getElementById('tab-dashboard').classList.toggle('active', !isChat);
+    if (!isChat) loadDashboard();
+  }
+
+  async function updateDashboardBadge() {
+    try {
+      const res = await fetch('/api/dashboard', { credentials: 'include' });
+      const widgets = await res.json();
+      const badge = document.getElementById('dashboard-badge');
+      if (widgets.length > 0) {
+        badge.textContent = widgets.length;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    } catch {}
+  }
+
+  async function pinChart(chartId) {
+    const chartData = chartDataStore[chartId];
+    if (!chartData) return;
+    const btn = document.getElementById(`pin_${chartId}`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvataggio…'; }
+    try {
+      const res = await fetch('/api/dashboard', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chart_data: chartData }),
+      });
+      if (res.ok) {
+        if (btn) {
+          btn.classList.add('pinned');
+          btn.textContent = '✓ Aggiunto alla dashboard';
+          btn.disabled = true;
+        }
+        updateDashboardBadge();
+      } else {
+        if (btn) { btn.disabled = false; btn.textContent = '📌 Aggiungi alla dashboard'; }
+      }
+    } catch {
+      if (btn) { btn.disabled = false; btn.textContent = '📌 Aggiungi alla dashboard'; }
+    }
+  }
+
+  async function loadDashboard() {
+    const grid = document.getElementById('dashboard-grid');
+    grid.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">Caricamento…</p>';
+    try {
+      const res = await fetch('/api/dashboard', { credentials: 'include' });
+      const widgets = await res.json();
+      renderDashboardGrid(widgets);
+    } catch {
+      grid.innerHTML = '<p class="dashboard-empty">Errore nel caricamento.</p>';
+    }
+  }
+
+  function renderDashboardGrid(widgets) {
+    const grid = document.getElementById('dashboard-grid');
+    if (widgets.length === 0) {
+      grid.innerHTML = `
+        <div class="dashboard-empty" style="width:100%">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><br>
+          Nessun grafico salvato.<br>Chiedi un grafico in chat e clicca <strong>📌 Aggiungi alla dashboard</strong>.
+        </div>`;
+      return;
+    }
+
+    // Applica eventuale ordine salvato in localStorage
+    const storedOrder = JSON.parse(localStorage.getItem('dashboard_order') || '[]');
+    if (storedOrder.length) {
+      widgets.sort((a, b) => {
+        const ia = storedOrder.indexOf(a.id);
+        const ib = storedOrder.indexOf(b.id);
+        return (ia === -1 ? 9999 : ia) - (ib === -1 ? 9999 : ib);
+      });
+    }
+
+    grid.innerHTML = '';
+    widgets.forEach(w => {
+      const cardId  = `dcard_${w.id.replace(/-/g, '')}`;
+      const canvasId = `dcanvas_${w.id.replace(/-/g, '')}`;
+      const date = new Date(w.created_at).toLocaleDateString('it-IT', { day:'2-digit', month:'short', year:'numeric' });
+      grid.insertAdjacentHTML('beforeend', `
+        <div class="widget-card" id="${cardId}" data-widget-id="${w.id}">
+          <div class="widget-card-header">
+            <span class="drag-handle" title="Trascina per spostare">⠿</span>
+            <div style="flex:1;min-width:0;margin-left:8px">
+              <div class="widget-card-title">${escapeHtml(w.title)}</div>
+              <div class="widget-card-meta">${date}</div>
+            </div>
+            <button class="widget-card-remove" onclick="removeWidget('${w.id}','${cardId}')" title="Rimuovi">✕</button>
+          </div>
+          <div class="widget-card-body">
+            <canvas id="${canvasId}"></canvas>
+          </div>
+        </div>
+      `);
+
+      const card = document.getElementById(cardId);
+
+      // ── Drag & drop ────────────────────────────────────────────────────
+      const handle = card.querySelector('.drag-handle');
+      handle.addEventListener('pointerdown', () => card.setAttribute('draggable', 'true'));
+      card.addEventListener('dragstart', e => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', cardId);
+        setTimeout(() => card.classList.add('is-dragging'), 0);
+      });
+      card.addEventListener('dragend', () => {
+        card.setAttribute('draggable', 'false');
+        card.classList.remove('is-dragging');
+        document.querySelectorAll('.widget-card').forEach(c => c.classList.remove('drag-over'));
+        // Persisti ordine
+        const ids = [...grid.querySelectorAll('.widget-card')].map(c => c.dataset.widgetId);
+        localStorage.setItem('dashboard_order', JSON.stringify(ids));
+      });
+      card.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const dragging = document.querySelector('.widget-card.is-dragging');
+        if (dragging && dragging !== card) card.classList.add('drag-over');
+      });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      card.addEventListener('drop', e => {
+        e.preventDefault();
+        card.classList.remove('drag-over');
+        const srcId  = e.dataTransfer.getData('text/plain');
+        const srcEl  = document.getElementById(srcId);
+        if (srcEl && srcEl !== card) {
+          const allCards = [...grid.querySelectorAll('.widget-card')];
+          const srcIdx   = allCards.indexOf(srcEl);
+          const dstIdx   = allCards.indexOf(card);
+          grid.insertBefore(srcEl, srcIdx < dstIdx ? card.nextSibling : card);
+        }
+      });
+
+      // ── ResizeObserver: ridisegna il grafico al resize della card ──────
+      const observer = new ResizeObserver(() => {
+        const chart = allCharts[canvasId];
+        if (chart) chart.resize();
+      });
+      observer.observe(card);
+
+      // Render grafico
+      requestAnimationFrame(() => renderChart(canvasId, w.chart_data));
+    });
+    updateDashboardBadge();
+  }
+
+  async function removeWidget(id, cardId) {
+    document.getElementById(cardId)?.remove();
+    try {
+      await fetch(`/api/dashboard/${id}`, { method: 'DELETE', credentials: 'include' });
+    } catch {}
+    updateDashboardBadge();
+    // se rimane vuoto, mostra empty state
+    const grid = document.getElementById('dashboard-grid');
+    if (grid && grid.children.length === 0) {
+      renderDashboardGrid([]);
     }
   }
 

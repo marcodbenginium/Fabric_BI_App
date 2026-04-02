@@ -1,0 +1,148 @@
+[
+  {
+    "id": "b3220106-c26c-4569-8759-ff32a313edeb",
+    "title": "Fatturato 2025 per Country",
+    "chart_data": {
+      "chart": true,
+      "chartType": "pie",
+      "data": [
+        {
+          "country": "Italy",
+          "value": 1893037836.75
+        },
+        {
+          "country": "China",
+          "value": 631468930.54
+        },
+        {
+          "country": "UK",
+          "value": 331417939.96
+        },
+        {
+          "country": "France",
+          "value": 254695175.84
+        },
+        {
+          "country": "Germany",
+          "value": 227130062.16
+        },
+        {
+          "country": "Spain",
+          "value": 210335399.83
+        },
+        {
+          "country": "Portugal",
+          "value": 197774029.7
+        },
+        {
+          "country": "Poland",
+          "value": 185440959.96
+        },
+        {
+          "country": "Brazil",
+          "value": 158784248.27
+        },
+        {
+          "country": "Switzerland",
+          "value": 121730780.24
+        },
+        {
+          "country": "India",
+          "value": 107222337.28
+        },
+        {
+          "country": "Czech Republic",
+          "value": 94961049.1
+        },
+        {
+          "country": "Colombia",
+          "value": 93543899.85
+        },
+        {
+          "country": "Netherlands",
+          "value": 34829793.79
+        },
+        {
+          "country": "Turkey",
+          "value": 32908433.31
+        },
+        {
+          "country": "Romania",
+          "value": 26492133.34
+        },
+        {
+          "country": "Hungary",
+          "value": 21415043.16
+        },
+        {
+          "country": "Ireland",
+          "value": 20584926.89
+        },
+        {
+          "country": "Slovakia",
+          "value": 19978876.92
+        },
+        {
+          "country": "Bulgaria",
+          "value": 17315529
+        }
+      ],
+      "title": "Fatturato 2025 per Country",
+      "xKey": "country"
+    },
+    "created_at": "2026-04-02T16:19:42.107525"
+  },
+  {
+    "id": "d414f8d8-6346-46a2-9cea-73b26e90c175",
+    "title": "Prime 10 Company Italia per Fatturato 2025",
+    "chart_data": {
+      "chart": true,
+      "chartType": "bar",
+      "data": [
+        {
+          "company": "GI Group Spa",
+          "revenue": 1695154731.93
+        },
+        {
+          "company": "Gi Business Process Outsourcing S.r.L.",
+          "revenue": 62290698.57
+        },
+        {
+          "company": "GI Formazione Srl",
+          "revenue": 48516637.74
+        },
+        {
+          "company": "IT Enginium S.r.l.",
+          "revenue": 25700941.31
+        },
+        {
+          "company": "Tack & TMI Italy",
+          "revenue": 13586439.6
+        },
+        {
+          "company": "C2C S.r.L.",
+          "revenue": 12573556.44
+        },
+        {
+          "company": "GI HR Services Srl",
+          "revenue": 11185991.24
+        },
+        {
+          "company": "Intoo Srl",
+          "revenue": 8940593.26
+        },
+        {
+          "company": "Wyser S.r.l.",
+          "revenue": 6958924.33
+        },
+        {
+          "company": "Grafton",
+          "revenue": 4576015.51
+        }
+      ],
+      "title": "Prime 10 Company Italia per Fatturato 2025",
+      "xKey": "company"
+    },
+    "created_at": "2026-04-02T16:21:12.139384"
+  }
+]
