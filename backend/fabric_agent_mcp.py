@@ -31,7 +31,7 @@ FABRIC_MCP_URL: str = os.getenv(
     '0181a0f2-47fe-48c3-81e1-2c425ea5f25e/agent',
 )
 
-MCP_PROTOCOL_VERSION = '2024-11-05'
+MCP_PROTOCOL_VERSION = '2025-06-18'
 TIMEOUT_SECONDS      = int(os.getenv('FABRIC_AGENT_TIMEOUT', '120'))
 
 
@@ -213,9 +213,9 @@ def ask_fabric_agent_mcp(access_token: str, question: str) -> dict:
         input_schema  = selected_tool.get('inputSchema', {})
         properties    = input_schema.get('properties', {})
 
-        # Cerca il campo testuale principale (query, question, input, text, message…)
-        text_param = 'query'
-        for candidate in ('query', 'question', 'input', 'text', 'message', 'prompt'):
+        # Cerca il campo testuale principale (userQuestion, query, question, input, text, message…)
+        text_param = next(iter(properties), 'query')  # fallback al primo parametro dello schema
+        for candidate in ('userQuestion', 'query', 'question', 'input', 'text', 'message', 'prompt'):
             if candidate in properties:
                 text_param = candidate
                 break
