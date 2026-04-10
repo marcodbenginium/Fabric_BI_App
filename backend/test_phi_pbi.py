@@ -25,6 +25,11 @@ Uso:
 
 import sys
 import os
+
+# Fix Windows cp1252 terminal — consente emoji e caratteri Unicode nei print
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))

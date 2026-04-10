@@ -107,23 +107,19 @@ class PBIExecutor:
         # Estrai risultati dalla struttura API
         try:
             result_table = data['results'][0]['tables'][0]
-            columns = result_table.get('columns', [])
             rows_raw = result_table.get('rows', [])
 
-            # Normalizza i nomi colonna (rimuove prefisso "TabellaNome[ColonnaNome]")
-            col_names = [c['name'] for c in columns]
-            rows = []
-            for row in rows_raw:
-                # Le chiavi delle row hanno il formato "TabellaNome[ColonnaNome]"
-                # oppure corrispondono direttamente ai column names
-                normalized = {}
-                for i, col in enumerate(col_names):
-                    # prova chiave diretta, poi cerca per posizione
-                    val = row.get(col)
-                    if val is None and i < len(row):
-                        val = list(row.values())[i]
-                    normalized[col] = val
-                rows.append(normalized)
+            # L'API Power BI REST restituisce le colonne come chiavi delle righe
+            # nel formato "Tabella[Colonna]" — non c'è un array 'columns' separato.
+            # Estraiamo i nomi dalle chiavi della prima riga.
+            if rows_raw:
+                raw_keys = list(rows_raw[0].keys())
+            else:
+                raw_keys = [c['name'] for c in result_table.get('columns', [])]
+
+            # Costruiamo colonne nel formato atteso e le righe normalizzate
+            columns = [{'name': k} for k in raw_keys]
+            rows    = [{k: row.get(k) for k in raw_keys} for row in rows_raw]
 
             return {
                 'success': True,

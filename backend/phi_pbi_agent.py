@@ -42,6 +42,12 @@ OLLAMA_TIMEOUT  = int(os.getenv('OLLAMA_TIMEOUT', '120'))
 FABRIC_API_BASE = 'https://api.fabric.microsoft.com/v1'
 LRO_MAX_WAIT_S  = int(os.getenv('PBI_SCHEMA_TIMEOUT', '120'))
 
+# Mappa codici numerici DataType (INFO.COLUMNS) -> stringa leggibile
+_DATATYPE_MAP = {
+    2: 'string', 6: 'int64', 8: 'double', 9: 'dateTime',
+    10: 'decimal', 11: 'boolean', 17: 'int64',
+}
+
 _SYSTEM_PROMPT_BASE = """
 You are a data analyst assistant with access to a Power BI semantic model.
 
@@ -343,8 +349,9 @@ class PhiPBIAgent:
         definition = self._call_get_definition()
         parts      = definition.get('definition', {}).get('parts', [])
 
-        tables     = []
-        model_tmdl = ''
+        tables        = []
+        model_tmdl    = ''
+        rel_tmdl      = ''   # relazioni in file separato (Fabric PBIP)
 
         for part in parts:
             path    = part.get('path', '')
@@ -357,8 +364,12 @@ class PhiPBIAgent:
                     tables.append(table)
             elif path == 'definition/model.tmdl':
                 model_tmdl = tmdl
+            elif path == 'definition/relationships.tmdl':
+                rel_tmdl = tmdl
 
-        relationships = _parse_model_tmdl(model_tmdl) if model_tmdl else []
+        # Le relazioni possono stare in relationships.tmdl o in model.tmdl
+        source_tmdl   = rel_tmdl if rel_tmdl else model_tmdl
+        relationships = _parse_model_tmdl(source_tmdl) if source_tmdl else []
         return _build_schema_text(tables, relationships)
 
     def get_schema(self, force_refresh: bool = False) -> str:
